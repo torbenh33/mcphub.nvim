@@ -154,7 +154,7 @@ function M.register(opts)
                 else
                     chat.config.functions[function_name] = {
                         _mcphub = true,
-                        group = safe_server_name,
+                        group = { safe_server_name },
                         description = tool.description or "No description provided",
                         schema = tool.inputSchema,
                         resolve = function(input)
@@ -233,7 +233,7 @@ function M.register(opts)
                     chat.config.functions[function_name] = {
                         _mcphub = true,
                         uri = resource.uri,
-                        group = safe_server_name,
+                        group = { safe_server_name },
                         description = resource.description or "No description provided",
                         resolve = function()
                             local res, err = access_resource(server_name, resource.uri)
@@ -274,7 +274,7 @@ function M.register(opts)
                     chat.config.functions[function_name] = {
                         _mcphub = true,
                         uri = template.uriTemplate,
-                        group = safe_server_name,
+                        group = { safe_server_name },
                         description = template.description or "No description provided",
                         resolve = function(input)
                             local url = chat_functions.uri_to_url(template.uriTemplate, input or {})
