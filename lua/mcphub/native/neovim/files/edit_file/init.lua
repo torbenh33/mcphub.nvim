@@ -3,22 +3,7 @@ local State = require("mcphub.state")
 ---@type MCPTool
 local edit_file_tool = {
     name = "edit_file",
-    description = [[Replace multiple sections in a file using SEARCH/REPLACE blocks that define exact changes to specific parts of the file. This tool starts an interactive edit session in Neovim. The user might accept some changes, reject some or add new text during the edit session. Once the edit session completes the result will include useful information like diff and feedback which you MUST take into account for SUBSEQUENT conversation: 
-1. A diff comparing the file before and after the edit session. The diff might be a result of a combination of:
-   - Changes from successfully applied SEARCH/REPLACE blocks
-   - Changes made by the USER during the edit session
-   - Changes made by the FORMATTERS or LINTERS that were run before the file is saved
-2. Feedback from the edit session, which might include:
-   - Any issues while PARSING the SEARCH/REPLACE blocks and how they were resolved
-   - Any issues encountered while FINDING the SEARCH content in the file like:
-     - SEARCH content not found (will provide the best match found for the SEARCH content) or
-     - SEARCH content found but with fuzzy matching (will provide a confidence score and the diff between SEARCH content and the fuzzy match)
-   - Any additional user feedback provided during the edit session
-3. Diagnostics in the file after the edit session is completed
-
-IMPORTANT: The diff will show you what all changes were made, and the feedback will provide additional context on how the SEARCH/REPLACE blocks were applied to avoid any issues in subsequent calls. You MUST give EXTREME care to the result of this tool or else you will be fired!!! 
-IMPORTANT: The tool is NEVER wrong. Once edits are shown in the buffer, user might make any additional changes like adding some new comment or editing the replace text you sent. This MUST be considered as intentional and is not a bug in the tool. Hence, careful observation of the diff and feedback is CRITICAL to avoid any issues in subsequent calls.
-]],
+    description = [[Replace one or more exact file sections using SEARCH/REPLACE blocks. Each SEARCH block must match the target file text exactly (character-for-character). The tool runs an interactive Neovim edit session and returns a diff plus parsing/feedback. Use an empty SEARCH block only to replace the entire file. Read the full guidelines in the diff description below for examples, escaping rules, and safe prompting templates.]],
     needs_confirmation_window = false, -- will show interactive diff, avoid double confirmations
     inputSchema = {
         type = "object",
@@ -29,120 +14,77 @@ IMPORTANT: The tool is NEVER wrong. Once edits are shown in the buffer, user mig
             },
             diff = {
                 type = "string",
-                description = [[One or more SEARCH/REPLACE blocks following this exact format:
+                description = [[- Purpose and behavior
+  - Each change must be provided as one SEARCH/REPLACE block using this exact format:
 
-<<<<<<< SEARCH
-[exact content to find]
-=======
-[new content to replace with]
+<<<<<<<< SEARCH
+    [exact text to find]
+    =======
+    [text to replace with]
 >>>>>>> REPLACE
 
-CRITICAL: 
-- When there are two or more related changes needed in a file, always use multiple SEARCH/REPLACE blocks in the diff from the start of the file to the end. Each block should contain the exact content to find and the new content to replace it with. Failing to do so or using multiple calls with single SEARCH/REPLACE block will result in you being fired!!!
-- The markers `<<<<<<< SEARCH`, `=======`, and `>>>>>>> REPLACE` MUST be exact with no other characters on the line.
+  - Parser behavior
+    - The parser matches SEARCH blocks exactly (including whitespace, indentation, and line endings).
+    - Only the first match per SEARCH block is replaced. To modify repeated content, provide multiple SEARCH/REPLACE blocks in the file's top-to-bottom order.
+    - Blocks must be listed from top to bottom within the file.
+  - Empty SEARCH block (nothing between SEARCH and =======) replaces the entire file; use it only when you want a full-file overwrite.
 
+- Escaping
+  - If your SEARCH or REPLACE text contains the literal marker lines (<<<<<<<, =======, >>>>>>>), escape each marker by prefixing a backslash (e.g., \<<<<<<<).
 
-Examples:
+- Best practices (to get success on first try)
+  1. If possible, read the file first and copy exact anchor lines into SEARCH blocks.
+  2. Prefer short, unique anchors (one or two complete lines) rather than large contexts.
+  3. To insert after a line L: set SEARCH to the exact L and REPLACE to L plus the inserted lines.
+  4. To replace a multi-line region, copy the exact region into SEARCH.
+  5. For multiple edits, provide multiple blocks in top-to-bottom order.
+  6. If you want a full overwrite, explicitly state "I confirm full-file replace" in your prompt; the assistant will use an empty SEARCH block.
 
-1. Multiple changes in one call from top to bottom: 
-<<<<<<< SEARCH
-import os
-=======
-import os
-import json
+- Examples (exact, minimal)
+  Insert lines after a unique anchor line:
+<<<<<<<< SEARCH
+  require('avante').setup({
+  =======
+  require('avante').setup({
+  -- NEW: file header inserted here
 >>>>>>> REPLACE
 
-<<<<<<< SEARCH
-def process_data():
-    # old implementation
-    pass
-=======
-def process_data():
-    # new implementation
-    with open('data.json') as f:
-        return json.load(f)
+  Replace an exact function block:
+<<<<<<<< SEARCH
+  def old():
+      pass
+  =======
+  def old():
+      # new implementation
+      return 42
 >>>>>>> REPLACE
 
-<<<<<<< SEARCH
-if __name__ == '__main__':
-    print("Starting")
-=======
-if __name__ == '__main__':
-    print("Starting with new config")
-    process_data()
+  Full-file replace (explicit confirmation required from user):
+<<<<<<<< SEARCH
+  (empty)
+  =======
+  <full new file content here>
 >>>>>>> REPLACE
 
-2. Deletion example:
-<<<<<<< SEARCH
-def unused_function():
-    return "delete me"
+- Error handling & feedback you can expect
+  - If a SEARCH block cannot be found: the tool will return the best-match context and indicate which block failed.
+  - If markers are malformed or order is invalid: the parser will return a parsing error with details.
+  - The tool will always return a BEFORE vs AFTER diff and any diagnostics; treat that output as authoritative.
 
-=======
->>>>>>> REPLACE
+- Suggested small server-side usability improvements (optional)
+  - Add an explicit replace_entire_file boolean parameter to eliminate the empty SEARCH hack.
+  - Offer insert_after(anchor_line) and replace_range(start_line_text, end_line_text) helpers.
+  - Return the exact snippet attempted to match in error responses to help repair failing searches.
+  - Optionally provide a fuzzy-match mode with a confirmation step.
 
-3. Adding new content at end: 
-CAUTION: Whitespaces or newlines without any other content in the SEARCH section will replace the entire file!!! This will lead to loss of all content in the file. Searching for empty lines or whitespace in order to replace something is not allowed. Only use empty SEARCH blocks if you want to replace the ENTIRE file content.
-<<<<<<< SEARCH
-    return result
+- Quick prompt templates you can copy/paste:
+  * Full replace (explicit):
+    "Replace entire file at path X with the following content. I confirm full replacement: <paste full new file content>."
+  * Insert after an exact anchor line:
+    "Insert these lines after the exact line: <anchor line copied verbatim>. Insert: <lines>."
+  * Multi-hunk request (no read):
+    "Apply these hunks in order to path X. Hunk 1: search '<exact line A>' replace with '<A plus inserted lines>'. Hunk 2: search '<exact block B>' replace with '<new block>'. I confirm these searches match the current file on disk."
 
-
-=======
-    return result
-
-def new_helper_function():
-    return "helper"
->>>>>>> REPLACE
-
-4. Replacing same content multiple times:
-<<<<<<< SEARCH
-count = 0
-=======
-counter = 0
->>>>>>> REPLACE
-
-<<<<<<< SEARCH
-print("Count is", count)
-=======
-print("Counter is", counter)
->>>>>>> REPLACE
-
-<<<<<<< SEARCH
-print("Count is", count)
-=======
-print("Counter is", counter)
->>>>>>> REPLACE
-
-CRITICAL RULE:
-When the SEARCH or REPLACE content includes lines that start with markers like `<<<<<<<`, `=======`, or `>>>>>>>`, you MUST escape them by adding a backslash before each marker so that tool doesn't parse them as actual markers. For example, to search for content that has `<<<<<<< SEARCH`, use `\<<<<<<< SEARCH` in the SEARCH block.
-
-5. Escaping markers in SEARCH/REPLACE content:
-<<<<<<< SEARCH
-Tutorial:
-A marker has < or > or = in it. E.g
-\<<<<<<< SEARCH
-=======
-Tutorial:
-A marker will have < or > or = in it. e.g
-\=======
->>>>>>> REPLACE
-
-
-CRITICAL rules:
-1. SEARCH content must match the file section EXACTLY:
-   - Character-for-character including whitespace, indentation, line endings
-   - Include all comments, docstrings, etc.
-2. SEARCH/REPLACE blocks will ONLY replace the first match occurrence
-   - To replace same content multiple times: Use multiple SEARCH/REPLACE blocks for each occurrence 
-   - When using multiple SEARCH/REPLACE blocks, list them in the order they appear in the file
-3. Keep SEARCH/REPLACE blocks concise:
-   - Include just the changing lines, and a few surrounding lines if needed for uniqueness
-   - Break large blocks into smaller blocks that each change a small portion. Searching for entire functions or large sections when only a few lines need changing will get you fired!!!
-   - Each line must be complete. Never truncate lines mid-way through as this can cause matching failures
-4. Special operations:
-   - To move code: Use two blocks (one to delete from original + one to insert at new location)
-   - To delete code: Use empty REPLACE section
-
-IMPORTANT: Batch multiple related changes for a file into a single call to minimize user interactions.
 ]],
             },
         },
@@ -175,3 +117,4 @@ IMPORTANT: Batch multiple related changes for a file into a single call to minim
 }
 
 return edit_file_tool
+
