@@ -18,15 +18,16 @@ local edit_file_tool = {
   - Each change must be provided as one SEARCH/REPLACE block using this exact format:
 
 <<<<<<<< SEARCH
-    [exact text to find]
-    =======
-    [text to replace with]
+[exact text to find]
+=======
+[text to replace with]
 >>>>>>> REPLACE
 
   - Parser behavior
     - The parser matches SEARCH blocks exactly (including whitespace, indentation, and line endings).
     - Only the first match per SEARCH block is replaced. To modify repeated content, provide multiple SEARCH/REPLACE blocks in the file's top-to-bottom order.
     - Blocks must be listed from top to bottom within the file.
+    - The markers MUST be on their own lines.
   - Empty SEARCH block (nothing between SEARCH and =======) replaces the entire file; use it only when you want a full-file overwrite.
 
 - Escaping
@@ -38,53 +39,37 @@ local edit_file_tool = {
   3. To insert after a line L: set SEARCH to the exact L and REPLACE to L plus the inserted lines.
   4. To replace a multi-line region, copy the exact region into SEARCH.
   5. For multiple edits, provide multiple blocks in top-to-bottom order.
-  6. If you want a full overwrite, explicitly state "I confirm full-file replace" in your prompt; the assistant will use an empty SEARCH block.
 
 - Examples (exact, minimal)
   Insert lines after a unique anchor line:
 <<<<<<<< SEARCH
-  require('avante').setup({
-  =======
-  require('avante').setup({
-  -- NEW: file header inserted here
+require('avante').setup({
+=======
+require('avante').setup({
+-- NEW: file header inserted here
 >>>>>>> REPLACE
 
   Replace an exact function block:
 <<<<<<<< SEARCH
-  def old():
-      pass
-  =======
-  def old():
-      # new implementation
-      return 42
+def old():
+    pass
+=======
+def old():
+    # new implementation
+    return 42
 >>>>>>> REPLACE
 
   Full-file replace (explicit confirmation required from user):
 <<<<<<<< SEARCH
-  (empty)
-  =======
-  <full new file content here>
+(empty)
+=======
+<full new file content here>
 >>>>>>> REPLACE
 
 - Error handling & feedback you can expect
   - If a SEARCH block cannot be found: the tool will return the best-match context and indicate which block failed.
   - If markers are malformed or order is invalid: the parser will return a parsing error with details.
   - The tool will always return a BEFORE vs AFTER diff and any diagnostics; treat that output as authoritative.
-
-- Suggested small server-side usability improvements (optional)
-  - Add an explicit replace_entire_file boolean parameter to eliminate the empty SEARCH hack.
-  - Offer insert_after(anchor_line) and replace_range(start_line_text, end_line_text) helpers.
-  - Return the exact snippet attempted to match in error responses to help repair failing searches.
-  - Optionally provide a fuzzy-match mode with a confirmation step.
-
-- Quick prompt templates you can copy/paste:
-  * Full replace (explicit):
-    "Replace entire file at path X with the following content. I confirm full replacement: <paste full new file content>."
-  * Insert after an exact anchor line:
-    "Insert these lines after the exact line: <anchor line copied verbatim>. Insert: <lines>."
-  * Multi-hunk request (no read):
-    "Apply these hunks in order to path X. Hunk 1: search '<exact line A>' replace with '<A plus inserted lines>'. Hunk 2: search '<exact block B>' replace with '<new block>'. I confirm these searches match the current file on disk."
-
 ]],
             },
         },
