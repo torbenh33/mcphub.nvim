@@ -39,6 +39,8 @@ local open_file_tool = {
             return res:error("Buffer is not loaded for path: " .. params.path)
         end
 
+        vim.bo[bufnr].buflisted = true
+
         res:text(string.format("Opened %s in buffer %d", params.path, bufnr)):send()
     end,
 }
