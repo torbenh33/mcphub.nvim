@@ -39,9 +39,16 @@ local open_file_tool = {
             return res:error("Buffer is not loaded for path: " .. params.path)
         end
 
+        local ok_reload, reload_err = pcall(vim.api.nvim_buf_call, bufnr, function()
+            vim.cmd("silent noautocmd edit!")
+        end)
+        if not ok_reload then
+            return res:error("Failed to reload buffer from disk: " .. tostring(reload_err))
+        end
+
         vim.bo[bufnr].buflisted = true
 
-        res:text(string.format("Opened %s in buffer %d", params.path, bufnr)):send()
+        res:text(string.format("Opened and reloaded %s in buffer %d", params.path, bufnr)):send()
     end,
 }
 
