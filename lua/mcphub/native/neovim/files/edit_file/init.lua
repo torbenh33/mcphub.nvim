@@ -1,4 +1,7 @@
 local State = require("mcphub.state")
+
+local M = {}
+
 ---New modular editor tool using EditSession
 ---@type MCPTool
 local edit_file_tool = {
@@ -101,5 +104,75 @@ def old():
     end,
 }
 
-return edit_file_tool
+---@type MCPTool
+local edit_file_simple_tool = {
+    name = "edit_file_simple",
+    description = [[Apply simple literal replacements to a file.
+
+Provide `replacements` as a list of { search, replace } objects.
+Each `search` is matched literally and replaced once, in list order.]],
+    needs_confirmation_window = false, -- EditSession already handles interactive diff/approval
+    inputSchema = {
+        type = "object",
+        properties = {
+            path = {
+                type = "string",
+                description = "The path to the file to modify",
+            },
+            replacements = {
+                type = "array",
+                description = "Simple literal replacements list. Each entry is applied once in order.",
+                items = {
+                    type = "object",
+                    properties = {
+                        search = {
+                            type = "string",
+                            description = "Literal string to find",
+                        },
+                        replace = {
+                            type = "string",
+                            description = "Replacement string",
+                        },
+                    },
+                    required = { "search", "replace" },
+                },
+            },
+        },
+        required = { "path", "replacements" },
+    },
+    handler = function(req, res)
+        local params = req.params
+        if not params.path or vim.trim(params.path) == "" then
+            return res:error("Missing required parameter: path")
+        end
+
+        local has_replacements = type(params.replacements) == "table" and not vim.tbl_isempty(params.replacements)
+        if not has_replacements then
+            return res:error("Missing required parameter: replacements")
+        end
+
+        -- Handle hub UI cleanup
+        if req.caller and req.caller.type == "hubui" then
+            req.caller.hubui:cleanup()
+        end
+
+        local EditSession = require("mcphub.native.neovim.files.edit_file.edit_session")
+        local session = EditSession.new(params.path, "", State.config.builtin_tools.edit_file)
+        session:start({
+            interactive = req.caller.auto_approve ~= true,
+            replacements = params.replacements,
+            on_success = function(summary)
+                res:text(summary):send()
+            end,
+            on_error = function(error_report)
+                res:error(error_report)
+            end,
+        })
+    end,
+}
+
+M.edit_file_tool = edit_file_tool
+M.edit_file_simple_tool = edit_file_simple_tool
+
+return M
 

@@ -2,7 +2,9 @@ local mcphub = require("mcphub")
 
 -- Import individual tools and resources
 local buffer_resource = require("mcphub.native.neovim.files.buffer")
-local edit_file_tool = require("mcphub.native.neovim.files.edit_file")
+local edit_file_module = require("mcphub.native.neovim.files.edit_file")
+local edit_file_tool = edit_file_module.edit_file_tool
+local edit_file_simple_tool = edit_file_module.edit_file_simple_tool
 local environment_resource = require("mcphub.native.neovim.files.environment")
 local file_tools = require("mcphub.native.neovim.files.operations")
 local search_tools = require("mcphub.native.neovim.files.search")
@@ -22,6 +24,7 @@ for _, tool in ipairs(search_tools) do
 end
 
 mcphub.add_tool("neovim", edit_file_tool)
+mcphub.add_tool("neovim", edit_file_simple_tool)
 mcphub.add_tool("neovim", write_tool)
 mcphub.add_tool("neovim", stage_lines_tool)
 mcphub.add_tool("neovim", open_file_tool)
