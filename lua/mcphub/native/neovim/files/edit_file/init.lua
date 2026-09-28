@@ -107,10 +107,21 @@ def old():
 ---@type MCPTool
 local edit_file_simple_tool = {
     name = "edit_file_simple",
-    description = [[Apply simple literal replacements to a file.
+    description = [[Apply simple literal replacements to a file using ordered search/replace pairs.
 
 Provide `replacements` as a list of { search, replace } objects.
-Each `search` is matched literally and replaced once, in list order.]],
+Each `search` string is matched exactly (character-for-character) and replaced once, in list order.
+
+Behavior and expectations:
+- Replacements are applied sequentially from first to last.
+- Each replacement affects only the first literal match.
+- Matching is exact, including whitespace and line breaks.
+- If a `search` string is not found, the tool reports an error with context.
+
+Best practices:
+- Use unique `search` strings to avoid ambiguous matches.
+- Keep replacement steps in top-to-bottom file order.
+- Prefer smaller, focused replacements for reliability.]],
     needs_confirmation_window = false, -- EditSession already handles interactive diff/approval
     inputSchema = {
         type = "object",
