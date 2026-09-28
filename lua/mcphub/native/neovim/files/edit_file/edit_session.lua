@@ -100,6 +100,7 @@ function EditSession:start(options)
     local buf_info = buf_utils.find_buffer(self.file_path) or {}
     local file_content = self:get_file_content(self.file_path, buf_info.bufnr)
     local is_replacing_entire_file = options.replace_file_content ~= nil
+    local is_using_replacements = options.replacements ~= nil
 
     ---@type ParsedBlock[]
     local parsed_blocks = {}
@@ -112,6 +113,33 @@ function EditSession:start(options)
             replace_content = options.replace_file_content,
             replace_lines = vim.split(options.replace_file_content, "\n", { plain = true, trimempty = true }),
         }--[[@as ParsedBlock]])
+    elseif is_using_replacements then
+        if type(options.replacements) ~= "table" or vim.tbl_isempty(options.replacements) then
+            return self:_handle_error("Missing required parameter: replacements (non-empty list expected)")
+        end
+
+        for i, replacement in ipairs(options.replacements) do
+            if type(replacement) ~= "table" then
+                return self:_handle_error(string.format("Invalid replacements[%d]: object expected", i))
+            end
+
+            if type(replacement.search) ~= "string" or replacement.search == "" then
+                return self:_handle_error(string.format("Invalid replacements[%d].search: non-empty string expected", i))
+            end
+
+            if replacement.replace ~= nil and type(replacement.replace) ~= "string" then
+                return self:_handle_error(string.format("Invalid replacements[%d].replace: string expected", i))
+            end
+
+            local replace_content = replacement.replace or ""
+            table.insert(parsed_blocks, {
+                block_id = string.format("Block %d", i),
+                search_content = replacement.search,
+                search_lines = vim.split(replacement.search, "\n", { plain = true, trimempty = false }),
+                replace_content = replace_content,
+                replace_lines = vim.split(replace_content, "\n", { plain = true, trimempty = false }),
+            }--[[@as ParsedBlock]])
+        end
     else
         local _parsed_blocks, parse_error = self.parser:parse(self.diff_content)
         if not _parsed_blocks then
