@@ -123,8 +123,8 @@ function EditSession:start(options)
                 return self:_handle_error(string.format("Invalid replacements[%d]: object expected", i))
             end
 
-            if type(replacement.search) ~= "string" or replacement.search == "" then
-                return self:_handle_error(string.format("Invalid replacements[%d].search: non-empty string expected", i))
+            if type(replacement.search) ~= "string" then
+                return self:_handle_error(string.format("Invalid replacements[%d].search: string expected", i))
             end
 
             if replacement.replace ~= nil and type(replacement.replace) ~= "string" then
