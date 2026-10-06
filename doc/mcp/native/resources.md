@@ -12,6 +12,7 @@ Resources provide data through URIs in two ways:
 ---@field name? string Resource identifier
 ---@field description? string|fun():string Resource description
 ---@field mimeType? string Resource MIME type (e.g., "text/plain")
+---@field dynamic? boolean Whether the resource content is dynamic
 ---@field uri string Static URI (e.g., "system://info")
 ---@field handler fun(req: ResourceRequest, res: ResourceResponse) Implementation
 ```
@@ -22,6 +23,7 @@ Resources provide data through URIs in two ways:
 ---@field name? string Template identifier
 ---@field description? string|fun():string Template description
 ---@field mimeType? string Default MIME type
+---@field dynamic? boolean Whether the resource content is dynamic
 ---@field uriTemplate string URI with parameters (e.g., "buffer://{bufnr}/lines")
 ---@field handler fun(req: ResourceRequest, res: ResourceResponse) Implementation
 ```

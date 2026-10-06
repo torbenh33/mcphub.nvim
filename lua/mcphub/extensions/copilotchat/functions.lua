@@ -202,6 +202,7 @@ function M.register(opts)
                                         uri = message.resource.uri,
                                         data = message.resource.text,
                                         mimetype = message.resource.mimeType,
+                                        dynamic = message.resource.dynamic,
                                     })
                                 end
                             end
@@ -252,6 +253,7 @@ function M.register(opts)
                                         uri = message.uri,
                                         data = message.text,
                                         mimetype = message.mimeType,
+                                        dynamic = resource.dynamic,
                                     })
                                 end
                             end
@@ -294,6 +296,7 @@ function M.register(opts)
                                         uri = message.uri,
                                         data = message.text,
                                         mimetype = message.mimeType,
+                                        dynamic = template.dynamic,
                                     })
                                 end
                             end
