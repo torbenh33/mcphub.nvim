@@ -72,6 +72,55 @@ function EditSession.new(file_path, diff_content, config)
     return self
 end
 
+--- Resolve a user-provided path to a stable absolute path
+---@param path string
+---@return string
+function EditSession:_resolve_file_path(path)
+    local path_obj = Path:new(path)
+    if path_obj:is_absolute() then
+        return path_obj:absolute()
+    end
+
+    local candidates = {}
+    local seen = {}
+    local function add_candidate(base)
+        if type(base) ~= "string" or base == "" then
+            return
+        end
+
+        local candidate = Path:new(base, path):absolute()
+        if seen[candidate] then
+            return
+        end
+        seen[candidate] = true
+        table.insert(candidates, candidate)
+    end
+
+    add_candidate(vim.fn.getcwd())
+
+    if self.origin_winnr and vim.api.nvim_win_is_valid(self.origin_winnr) then
+        local ok_win_cwd, win_cwd = pcall(vim.fn.getcwd, self.origin_winnr)
+        if ok_win_cwd then
+            add_candidate(win_cwd)
+        end
+
+        local ok_buf_dir, buf_dir = pcall(vim.api.nvim_win_call, self.origin_winnr, function()
+            return vim.fn.expand("%:p:h")
+        end)
+        if ok_buf_dir then
+            add_candidate(buf_dir)
+        end
+    end
+
+    for _, candidate in ipairs(candidates) do
+        if Path:new(candidate):exists() then
+            return candidate
+        end
+    end
+
+    return candidates[1] or path_obj:absolute()
+end
+
 --- Get the content of the buffer if available or read from file
 ---@param path string Path to the file
 ---@param bufnr number? Buffer number to read from (if available)
@@ -96,9 +145,16 @@ function EditSession:start(options)
         on_success = options.on_success or function() end,
         on_error = options.on_error or function() end,
     }
+    local original_file_path = self.file_path
+    self.file_path = self:_resolve_file_path(self.file_path)
+
     local buf_utils = require("mcphub.native.neovim.utils.buffer")
-    local buf_info = buf_utils.find_buffer(self.file_path) or {}
+    local buf_info = buf_utils.find_buffer(self.file_path)
+        or buf_utils.find_buffer(original_file_path)
+        or {}
     local file_content = self:get_file_content(self.file_path, buf_info.bufnr)
+    local file_exists_on_disk = Path:new(self.file_path):exists()
+    local has_target_buffer = buf_info.bufnr and vim.api.nvim_buf_is_valid(buf_info.bufnr)
     local is_replacing_entire_file = options.replace_file_content ~= nil
     local is_using_replacements = options.replacements ~= nil
 
@@ -162,11 +218,13 @@ function EditSession:start(options)
             break
         else
             -- If we are searching for something in a file that doesn't exist, we should not proceed
-            if file_content == "" then
+            if not file_exists_on_disk and not has_target_buffer then
                 return self:_handle_error(
                     string.format(
-                        "Editing `%s` failed. The file does not exist. If you are using relative paths make sure the path is relative to the cwd or use an absolute path.",
-                        self.file_path
+                        "Editing `%s` failed. The file does not exist (resolved path: `%s`, cwd: `%s`). If you are using relative paths make sure the path is relative to the cwd or use an absolute path.",
+                        original_file_path,
+                        self.file_path,
+                        vim.fn.getcwd()
                     )
                 )
             end
